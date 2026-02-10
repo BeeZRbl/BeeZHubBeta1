@@ -1,0 +1,1114 @@
+-- BeeZ Hub 🐝 - Blox Fruits Auto Farm
+-- Wind UI Style - Hiện đại & Đẹp mắt
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+local StarterGui = game:GetService("StarterGui")
+local MarketplaceService = game:GetService("MarketplaceService")
+
+local player = Players.LocalPlayer
+
+-- BeeZ Hub Config
+local BEEZ_HUB_VERSION = "v2.0.1"
+local BEEZ_HUB_COLORS = {
+	primary = Color3.fromRGB(255, 193, 7),     -- Vàng ong chính
+	secondary = Color3.fromRGB(255, 235, 59),   -- Vàng sáng
+	accent = Color3.fromRGB(33, 150, 243),      -- Xanh dương
+	dark = Color3.fromRGB(18, 18, 24),          -- Nền tối
+	darker = Color3.fromRGB(12, 12, 18),        -- Nền đậm
+	light = Color3.fromRGB(245, 245, 245),      -- Chữ sáng
+	success = Color3.fromRGB(76, 175, 80),      -- Xanh lá
+	warning = Color3.fromRGB(255, 152, 0),      -- Cam
+	danger = Color3.fromRGB(244, 67, 54),       -- Đỏ
+	info = Color3.fromRGB(3, 169, 244)          -- Xanh thông tin
+}
+
+-- Farm Modes Configuration
+local FARM_MODES = {
+	Normal = {
+		name = "Normal Farm",
+		icon = "👤",
+		color = BEEZ_HUB_COLORS.info,
+		description = "Farm mobs thường",
+		searchDistance = 50,
+		priority = {"Bandit", "Monkey", "Pirate", "Brute"},
+		attackDelay = 0.5
+	},
+	Boss = {
+		name = "Boss Farm",
+		icon = "👑",
+		color = BEEZ_HUB_COLORS.danger,
+		description = "Farm boss & elite",
+		searchDistance = 100,
+		priority = {"Boss", "Saber Expert", "Dark Beard", "Order"},
+		attackDelay = 1.2
+	},
+	Material = {
+		name = "Material Farm",
+		icon = "📦",
+		color = BEEZ_HUB_COLORS.success,
+		description = "Farm vật liệu & fruit",
+		searchDistance = 80,
+		priority = {"Material", "Chest", "Devil Fruit"},
+		attackDelay = 0.3
+	},
+	Auto = {
+		name = "Auto Farm",
+		icon = "🤖",
+		color = BEEZ_HUB_COLORS.primary,
+		description = "Tự động farm thông minh",
+		searchDistance = 70,
+		priority = {"Bandit", "Monkey", "Pirate", "Material"},
+		attackDelay = 0.6
+	},
+	Sea = {
+		name = "Sea Event",
+		icon = "🌊",
+		color = BEEZ_HUB_COLORS.accent,
+		description = "Tự động sự kiện biển",
+		searchDistance = 150,
+		priority = {"Sea Beast", "Shark", "Pirate Ship"},
+		attackDelay = 0.8
+	}
+}
+
+-- Global Variables
+local autoFarmEnabled = false
+local currentFarmMode = "Auto"
+local autoFarmConnection = nil
+local farmStats = {
+	kills = 0,
+	materials = 0,
+	berries = 0,
+	experience = 0,
+	startTime = 0,
+	sessionTime = 0
+}
+
+-- UI Components
+local BeeZHubUI
+local mainWindow
+local sidebar
+local contentFrame
+local notificationFrame
+
+-- Tạo gradient effect
+local function createGradient(colors, rotation)
+	local gradient = Instance.new("UIGradient")
+	gradient.Color = ColorSequence.new(colors)
+	gradient.Rotation = rotation or 90
+	return gradient
+end
+
+-- Tạo hiệu ứng shadow
+local function createShadow(parent)
+	local shadow = Instance.new("ImageLabel")
+	shadow.Name = "Shadow"
+	shadow.Size = UDim2.new(1, 10, 1, 10)
+	shadow.Position = UDim2.new(0, -5, 0, -5)
+	shadow.BackgroundTransparency = 1
+	shadow.Image = "rbxassetid://5554236805"
+	shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+	shadow.ImageTransparency = 0.8
+	shadow.ScaleType = Enum.ScaleType.Slice
+	shadow.SliceCenter = Rect.new(23, 23, 277, 277)
+	shadow.ZIndex = -1
+	shadow.Parent = parent
+	return shadow
+end
+
+-- Tạo bee button
+local function createBeeButton(name, text, icon, color, callback)
+	local button = Instance.new("TextButton")
+	button.Name = name
+	button.Size = UDim2.new(1, -20, 0, 50)
+	button.BackgroundColor3 = color
+	button.BackgroundTransparency = 0.9
+	button.AutoButtonColor = false
+	button.Text = ""
+	
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 12)
+	corner.Parent = button
+	
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = color
+	stroke.Thickness = 2
+	stroke.Transparency = 0.7
+	stroke.Parent = button
+	
+	-- Icon
+	local iconLabel = Instance.new("TextLabel")
+	iconLabel.Name = "Icon"
+	iconLabel.Size = UDim2.new(0, 40, 0, 40)
+	iconLabel.Position = UDim2.new(0, 10, 0.5, -20)
+	iconLabel.BackgroundTransparency = 1
+	iconLabel.Text = icon
+	iconLabel.TextColor3 = color
+	iconLabel.TextSize = 24
+	iconLabel.Font = Enum.Font.GothamBold
+	iconLabel.Parent = button
+	
+	-- Text
+	local textLabel = Instance.new("TextLabel")
+	textLabel.Name = "Text"
+	textLabel.Size = UDim2.new(1, -60, 1, 0)
+	textLabel.Position = UDim2.new(0, 60, 0, 0)
+	textLabel.BackgroundTransparency = 1
+	textLabel.Text = text
+	textLabel.TextColor3 = BEEZ_HUB_COLORS.light
+	textLabel.TextSize = 14
+	textLabel.Font = Enum.Font.GothamSemibold
+	textLabel.TextXAlignment = Enum.TextXAlignment.Left
+	textLabel.Parent = button
+	
+	-- Hover effect
+	button.MouseEnter:Connect(function()
+		TweenService:Create(button, TweenInfo.new(0.2), {
+			BackgroundTransparency = 0.8
+		}):Play()
+		TweenService:Create(stroke, TweenInfo.new(0.2), {
+			Transparency = 0.3
+		}):Play()
+	end)
+	
+	button.MouseLeave:Connect(function()
+		TweenService:Create(button, TweenInfo.new(0.2), {
+			BackgroundTransparency = 0.9
+		}):Play()
+		TweenService:Create(stroke, TweenInfo.new(0.2), {
+			Transparency = 0.7
+		}):Play()
+	end)
+	
+	-- Click effect
+	button.MouseButton1Down:Connect(function()
+		TweenService:Create(button, TweenInfo.new(0.1), {
+			Size = UDim2.new(1, -25, 0, 45)
+		}):Play()
+	end)
+	
+	button.MouseButton1Up:Connect(function()
+		TweenService:Create(button, TweenInfo.new(0.1), {
+			Size = UDim2.new(1, -20, 0, 50)
+		}):Play()
+		if callback then callback() end
+	end)
+	
+	return button
+end
+
+-- Tạo mode card
+local function createModeCard(mode, icon, color, isActive)
+	local card = Instance.new("TextButton")
+	card.Name = mode .. "Card"
+	card.Size = UDim2.new(0, 140, 0, 100)
+	card.BackgroundColor3 = BEEZ_HUB_COLORS.darker
+	card.BackgroundTransparency = 0.7
+	card.AutoButtonColor = false
+	card.Text = ""
+	
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 16)
+	corner.Parent = card
+	
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = isActive and color or Color3.fromRGB(100, 100, 100)
+	stroke.Thickness = 2
+	stroke.Transparency = isActive and 0.3 or 0.7
+	stroke.Parent = card
+	
+	-- Active glow
+	if isActive then
+		local glow = Instance.new("ImageLabel")
+		glow.Name = "Glow"
+		glow.Size = UDim2.new(1, 20, 1, 20)
+		glow.Position = UDim2.new(0, -10, 0, -10)
+		glow.BackgroundTransparency = 1
+		glow.Image = "rbxassetid://5554236805"
+		glow.ImageColor3 = color
+		glow.ImageTransparency = 0.6
+		glow.ScaleType = Enum.ScaleType.Slice
+		glow.SliceCenter = Rect.new(23, 23, 277, 277)
+		glow.ZIndex = -1
+		glow.Parent = card
+	end
+	
+	-- Icon
+	local iconLabel = Instance.new("TextLabel")
+	iconLabel.Name = "Icon"
+	iconLabel.Size = UDim2.new(1, 0, 0, 50)
+	iconLabel.Position = UDim2.new(0, 0, 0, 10)
+	iconLabel.BackgroundTransparency = 1
+	iconLabel.Text = icon
+	iconLabel.TextColor3 = color
+	iconLabel.TextSize = 32
+	iconLabel.Font = Enum.Font.GothamBold
+	iconLabel.Parent = card
+	
+	-- Mode Name
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Name = "Name"
+	nameLabel.Size = UDim2.new(1, 0, 0, 20)
+	nameLabel.Position = UDim2.new(0, 0, 0, 60)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = mode
+	nameLabel.TextColor3 = BEEZ_HUB_COLORS.light
+	nameLabel.TextSize = 14
+	nameLabel.Font = Enum.Font.GothamSemibold
+	nameLabel.Parent = card
+	
+	-- Hover effects
+	card.MouseEnter:Connect(function()
+		if not isActive then
+			TweenService:Create(stroke, TweenInfo.new(0.2), {
+				Transparency = 0.4,
+				Color = color
+			}):Play()
+		end
+	end)
+	
+	card.MouseLeave:Connect(function()
+		if not isActive then
+			TweenService:Create(stroke, TweenInfo.new(0.2), {
+				Transparency = 0.7,
+				Color = Color3.fromRGB(100, 100, 100)
+			}):Play()
+		end
+	end)
+	
+	return card
+end
+
+-- Tạo stat card
+local function createStatCard(name, value, icon, color)
+	local card = Instance.new("Frame")
+	card.Name = name .. "Stat"
+	card.Size = UDim2.new(0, 160, 0, 80)
+	card.BackgroundColor3 = BEEZ_HUB_COLORS.darker
+	card.BackgroundTransparency = 0.7
+	
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 12)
+	corner.Parent = card
+	
+	-- Icon background
+	local iconBg = Instance.new("Frame")
+	iconBg.Name = "IconBg"
+	iconBg.Size = UDim2.new(0, 50, 0, 50)
+	iconBg.Position = UDim2.new(0, 10, 0.5, -25)
+	iconBg.BackgroundColor3 = color
+	iconBg.BackgroundTransparency = 0.8
+	iconBg.Parent = card
+	
+	local iconCorner = Instance.new("UICorner")
+	iconCorner.CornerRadius = UDim.new(0, 12)
+	iconCorner.Parent = iconBg
+	
+	-- Icon
+	local iconLabel = Instance.new("TextLabel")
+	iconLabel.Name = "Icon"
+	iconLabel.Size = UDim2.new(1, 0, 1, 0)
+	iconLabel.BackgroundTransparency = 1
+	iconLabel.Text = icon
+	iconLabel.TextColor3 = BEEZ_HUB_COLORS.light
+	iconLabel.TextSize = 24
+	iconLabel.Font = Enum.Font.GothamBold
+	iconLabel.Parent = iconBg
+	
+	-- Name
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Name = "Name"
+	nameLabel.Size = UDim2.new(0, 90, 0, 20)
+	nameLabel.Position = UDim2.new(0, 70, 0, 15)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = name
+	nameLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+	nameLabel.TextSize = 12
+	nameLabel.Font = Enum.Font.Gotham
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	nameLabel.Parent = card
+	
+	-- Value
+	local valueLabel = Instance.new("TextLabel")
+	valueLabel.Name = "Value"
+	valueLabel.Size = UDim2.new(0, 90, 0, 30)
+	valueLabel.Position = UDim2.new(0, 70, 0, 35)
+	valueLabel.BackgroundTransparency = 1
+	valueLabel.Text = tostring(value)
+	valueLabel.TextColor3 = BEEZ_HUB_COLORS.light
+	valueLabel.TextSize = 24
+	valueLabel.Font = Enum.Font.GothamBold
+	valueLabel.TextXAlignment = Enum.TextXAlignment.Left
+	valueLabel.Parent = card
+	
+	return card, valueLabel
+end
+
+-- Tạo notification
+local function showNotification(title, message, color, duration)
+	if not notificationFrame then return end
+	
+	local notification = Instance.new("Frame")
+	notification.Name = "Notification"
+	notification.Size = UDim2.new(0, 300, 0, 80)
+	notification.Position = UDim2.new(1, 10, 0, 10)
+	notification.BackgroundColor3 = BEEZ_HUB_COLORS.darker
+	notification.BackgroundTransparency = 0.8
+	
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 12)
+	corner.Parent = notification
+	
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = color
+	stroke.Thickness = 2
+	stroke.Transparency = 0.5
+	stroke.Parent = notification
+	
+	-- Title
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Name = "Title"
+	titleLabel.Size = UDim2.new(1, -20, 0, 30)
+	titleLabel.Position = UDim2.new(0, 10, 0, 10)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = title
+	titleLabel.TextColor3 = color
+	titleLabel.TextSize = 16
+	titleLabel.Font = Enum.Font.GothamBold
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.Parent = notification
+	
+	-- Message
+	local messageLabel = Instance.new("TextLabel")
+	messageLabel.Name = "Message"
+	messageLabel.Size = UDim2.new(1, -20, 0, 30)
+	messageLabel.Position = UDim2.new(0, 10, 0, 40)
+	messageLabel.BackgroundTransparency = 1
+	messageLabel.Text = message
+	messageLabel.TextColor3 = BEEZ_HUB_COLORS.light
+	messageLabel.TextSize = 14
+	messageLabel.Font = Enum.Font.Gotham
+	messageLabel.TextXAlignment = Enum.TextXAlignment.Left
+	messageLabel.Parent = notification
+	
+	-- Close button
+	local closeButton = Instance.new("TextButton")
+	closeButton.Name = "Close"
+	closeButton.Size = UDim2.new(0, 20, 0, 20)
+	closeButton.Position = UDim2.new(1, -25, 0, 10)
+	closeButton.BackgroundTransparency = 1
+	closeButton.Text = "×"
+	closeButton.TextColor3 = BEEZ_HUB_COLORS.light
+	closeButton.TextSize = 20
+	closeButton.Font = Enum.Font.GothamBold
+	closeButton.Parent = notification
+	
+	notification.Parent = notificationFrame
+	
+	-- Animation in
+	TweenService:Create(notification, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Position = UDim2.new(1, -310, 0, 10)
+	}):Play()
+	
+	-- Close functionality
+	local function close()
+		TweenService:Create(notification, TweenInfo.new(0.3), {
+			Position = UDim2.new(1, 10, 0, 10),
+			BackgroundTransparency = 1
+		}):Play()
+		wait(0.3)
+		notification:Destroy()
+	end
+	
+	closeButton.MouseButton1Click:Connect(close)
+	
+	-- Auto close
+	if duration then
+		spawn(function()
+			wait(duration)
+			close()
+		end)
+	end
+end
+
+-- Tạo BeeZ Hub UI
+local function createBeeZHubUI()
+	-- ScreenGui
+	BeeZHubUI = Instance.new("ScreenGui")
+	BeeZHubUI.Name = "BeeZHubUI"
+	BeeZHubUI.ResetOnSpawn = false
+	BeeZHubUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	BeeZHubUI.Parent = player.PlayerGui
+	
+	-- Main Window
+	mainWindow = Instance.new("Frame")
+	mainWindow.Name = "MainWindow"
+	mainWindow.Size = UDim2.new(0, 850, 0, 550)
+	mainWindow.Position = UDim2.new(0.5, -425, 0.5, -275)
+	mainWindow.BackgroundColor3 = BEEZ_HUB_COLORS.dark
+	mainWindow.BackgroundTransparency = 0.1
+	mainWindow.ClipsDescendants = true
+	
+	local windowCorner = Instance.new("UICorner")
+	windowCorner.CornerRadius = UDim.new(0, 20)
+	windowCorner.Parent = mainWindow
+	
+	createShadow(mainWindow)
+	
+	-- Title Bar
+	local titleBar = Instance.new("Frame")
+	titleBar.Name = "TitleBar"
+	titleBar.Size = UDim2.new(1, 0, 0, 60)
+	titleBar.BackgroundColor3 = BEEZ_HUB_COLORS.darker
+	titleBar.BackgroundTransparency = 0.5
+	
+	local titleCorner = Instance.new("UICorner")
+	titleCorner.CornerRadius = UDim.new(0, 20)
+	titleCorner.Parent = titleBar
+	
+	-- Logo & Title
+	local logoFrame = Instance.new("Frame")
+	logoFrame.Name = "LogoFrame"
+	logoFrame.Size = UDim2.new(0, 200, 1, 0)
+	logoFrame.BackgroundTransparency = 1
+	
+	local logoText = Instance.new("TextLabel")
+	logoText.Name = "Logo"
+	logoText.Size = UDim2.new(1, 0, 1, 0)
+	logoText.BackgroundTransparency = 1
+	logoText.Text = "BeeZ Hub 🐝"
+	logoText.TextColor3 = BEEZ_HUB_COLORS.primary
+	logoText.TextSize = 28
+	logoText.Font = Enum.Font.GothamBold
+	logoText.TextXAlignment = Enum.TextXAlignment.Left
+	logoText.Position = UDim2.new(0, 20, 0, 0)
+	
+	-- Logo gradient
+	local logoGradient = createGradient({
+		BEEZ_HUB_COLORS.primary,
+		BEEZ_HUB_COLORS.secondary
+	}, 0)
+	logoGradient.Parent = logoText
+	
+	logoText.Parent = logoFrame
+	
+	local versionText = Instance.new("TextLabel")
+	versionText.Name = "Version"
+	versionText.Size = UDim2.new(1, 0, 0, 20)
+	versionText.Position = UDim2.new(0, 20, 1, -25)
+	versionText.BackgroundTransparency = 1
+	versionText.Text = BEEZ_HUB_VERSION .. " | Wind UI"
+	versionText.TextColor3 = Color3.fromRGB(150, 150, 150)
+	versionText.TextSize = 12
+	versionText.Font = Enum.Font.Gotham
+	versionText.TextXAlignment = Enum.TextXAlignment.Left
+	versionText.Parent = logoFrame
+	
+	logoFrame.Parent = titleBar
+	
+	-- Control Buttons
+	local controlButtons = Instance.new("Frame")
+	controlButtons.Name = "ControlButtons"
+	controlButtons.Size = UDim2.new(0, 120, 1, 0)
+	controlButtons.Position = UDim2.new(1, -130, 0, 0)
+	controlButtons.BackgroundTransparency = 1
+	
+	-- Minimize Button
+	local minimizeButton = Instance.new("TextButton")
+	minimizeButton.Name = "Minimize"
+	minimizeButton.Size = UDim2.new(0, 30, 0, 30)
+	minimizeButton.Position = UDim2.new(0, 60, 0.5, -15)
+	minimizeButton.BackgroundColor3 = BEEZ_HUB_COLORS.warning
+	minimizeButton.BackgroundTransparency = 0.8
+	minimizeButton.Text = "─"
+	minimizeButton.TextColor3 = BEEZ_HUB_COLORS.light
+	minimizeButton.TextSize = 20
+	minimizeButton.Font = Enum.Font.GothamBold
+	
+	local minimizeCorner = Instance.new("UICorner")
+	minimizeCorner.CornerRadius = UDim.new(0, 8)
+	minimizeCorner.Parent = minimizeButton
+	
+	-- Close Button
+	local closeButton = Instance.new("TextButton")
+	closeButton.Name = "Close"
+	closeButton.Size = UDim2.new(0, 30, 0, 30)
+	closeButton.Position = UDim2.new(0, 10, 0.5, -15)
+	closeButton.BackgroundColor3 = BEEZ_HUB_COLORS.danger
+	closeButton.BackgroundTransparency = 0.8
+	closeButton.Text = "×"
+	closeButton.TextColor3 = BEEZ_HUB_COLORS.light
+	closeButton.TextSize = 20
+	closeButton.Font = Enum.Font.GothamBold
+	
+	local closeCorner = Instance.new("UICorner")
+	closeCorner.CornerRadius = UDim.new(0, 8)
+	closeCorner.Parent = closeButton
+	
+	minimizeButton.Parent = controlButtons
+	closeButton.Parent = controlButtons
+	
+	controlButtons.Parent = titleBar
+	titleBar.Parent = mainWindow
+	
+	-- Sidebar
+	sidebar = Instance.new("Frame")
+	sidebar.Name = "Sidebar"
+	sidebar.Size = UDim2.new(0, 250, 1, -60)
+	sidebar.Position = UDim2.new(0, 0, 0, 60)
+	sidebar.BackgroundColor3 = BEEZ_HUB_COLORS.darker
+	sidebar.BackgroundTransparency = 0.7
+	
+	local sidebarCorner = Instance.new("UICorner")
+	sidebarCorner.CornerRadius = UDim.new(0, 0, 20, 0)
+	sidebarCorner.Parent = sidebar
+	
+	-- Sidebar Content
+	local sidebarContent = Instance.new("Frame")
+	sidebarContent.Name = "Content"
+	sidebarContent.Size = UDim2.new(1, 0, 1, 0)
+	sidebarContent.BackgroundTransparency = 1
+	sidebarContent.Parent = sidebar
+	
+	-- Navigation Title
+	local navTitle = Instance.new("TextLabel")
+	navTitle.Name = "NavTitle"
+	navTitle.Size = UDim2.new(1, -20, 0, 40)
+	navTitle.Position = UDim2.new(0, 20, 0, 20)
+	navTitle.BackgroundTransparency = 1
+	navTitle.Text = "NAVIGATION"
+	navTitle.TextColor3 = Color3.fromRGB(150, 150, 150)
+	navTitle.TextSize = 12
+	navTitle.Font = Enum.Font.GothamBold
+	navTitle.TextXAlignment = Enum.TextXAlignment.Left
+	navTitle.Parent = sidebarContent
+	
+	-- Navigation Buttons
+	local navButtons = {
+		{name = "AutoFarm", icon = "🤖", text = "AUTO FARM", color = BEEZ_HUB_COLORS.primary},
+		{name = "Stats", icon = "📊", text = "STATISTICS", color = BEEZ_HUB_COLORS.info},
+		{name = "Settings", icon = "⚙️", text = "SETTINGS", color = BEEZ_HUB_COLORS.warning},
+		{name = "Teleports", icon = "📍", text = "TELEPORTS", color = BEEZ_HUB_COLORS.success},
+		{name = "Misc", icon = "🔧", text = "MISC FEATURES", color = BEEZ_HUB_COLORS.accent}
+	}
+	
+	local buttonY = 70
+	for i, buttonInfo in ipairs(navButtons) do
+		local button = createBeeButton(
+			buttonInfo.name,
+			buttonInfo.text,
+			buttonInfo.icon,
+			buttonInfo.color,
+			function()
+				switchTab(buttonInfo.name)
+			end
+		)
+		button.Position = UDim2.new(0, 10, 0, buttonY)
+		button.Parent = sidebarContent
+		buttonY = buttonY + 60
+	end
+	
+	-- Status Panel
+	local statusPanel = Instance.new("Frame")
+	statusPanel.Name = "StatusPanel"
+	statusPanel.Size = UDim2.new(1, -20, 0, 100)
+	statusPanel.Position = UDim2.new(0, 10, 1, -120)
+	statusPanel.BackgroundColor3 = BEEZ_HUB_COLORS.dark
+	statusPanel.BackgroundTransparency = 0.8
+	
+	local statusCorner = Instance.new("UICorner")
+	statusCorner.CornerRadius = UDim.new(0, 12)
+	statusCorner.Parent = statusPanel
+	
+	local statusTitle = Instance.new("TextLabel")
+	statusTitle.Name = "StatusTitle"
+	statusTitle.Size = UDim2.new(1, 0, 0, 30)
+	statusTitle.Position = UDim2.new(0, 10, 0, 10)
+	statusTitle.BackgroundTransparency = 1
+	statusTitle.Text = "SYSTEM STATUS"
+	statusTitle.TextColor3 = Color3.fromRGB(150, 150, 150)
+	statusTitle.TextSize = 12
+	statusTitle.Font = Enum.Font.GothamBold
+	statusTitle.TextXAlignment = Enum.TextXAlignment.Left
+	statusTitle.Parent = statusPanel
+	
+	local statusText = Instance.new("TextLabel")
+	statusText.Name = "Status"
+	statusText.Size = UDim2.new(1, -20, 0, 40)
+	statusText.Position = UDim2.new(0, 10, 0, 40)
+	statusText.BackgroundTransparency = 1
+	statusText.Text = "🟢 READY"
+	statusText.TextColor3 = BEEZ_HUB_COLORS.success
+	statusText.TextSize = 16
+	statusText.Font = Enum.Font.GothamBold
+	statusText.TextXAlignment = Enum.TextXAlignment.Left
+	statusText.Parent = statusPanel
+	
+	statusPanel.Parent = sidebarContent
+	
+	-- Content Frame
+	contentFrame = Instance.new("Frame")
+	contentFrame.Name = "ContentFrame"
+	contentFrame.Size = UDim2.new(1, -250, 1, -60)
+	contentFrame.Position = UDim2.new(0, 250, 0, 60)
+	contentFrame.BackgroundTransparency = 1
+	contentFrame.Parent = mainWindow
+	
+	-- Notification Frame
+	notificationFrame = Instance.new("Frame")
+	notificationFrame.Name = "NotificationFrame"
+	notificationFrame.Size = UDim2.new(0, 350, 1, 0)
+	notificationFrame.Position = UDim2.new(1, 10, 0, 0)
+	notificationFrame.BackgroundTransparency = 1
+	notificationFrame.Parent = mainWindow
+	
+	-- Parent everything
+	mainWindow.Parent = BeeZHubUI
+	
+	-- Make window draggable
+	local dragging = false
+	local dragInput, dragStart, startPos
+	
+	titleBar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+			dragStart = input.Position
+			startPos = mainWindow.Position
+			
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+	
+	titleBar.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement then
+			dragInput = input
+		end
+	end)
+	
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and input == dragInput then
+			local delta = input.Position - dragStart
+			mainWindow.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		end
+	end)
+	
+	-- Window controls
+	minimizeButton.MouseButton1Click:Connect(function()
+		local isMinimized = contentFrame.Visible
+		contentFrame.Visible = not isMinimized
+		sidebar.Visible = not isMinimized
+		
+		if isMinimized then
+			mainWindow.Size = UDim2.new(0, 850, 0, 550)
+			minimizeButton.Text = "─"
+		else
+			mainWindow.Size = UDim2.new(0, 850, 0, 60)
+			minimizeButton.Text = "□"
+		end
+	end)
+	
+	closeButton.MouseButton1Click:Connect(function()
+		mainWindow.Visible = false
+		showNotification(
+			"BeeZ Hub 🐝",
+			"UI đã được ẩn. Mở lại với /beez",
+			BEEZ_HUB_COLORS.primary,
+			5
+		)
+	end)
+	
+	-- Trả về UI components để cập nhật
+	return {
+		statusText = statusText,
+		contentFrame = contentFrame
+	}
+end
+
+-- Tạo tabs content
+local function createTabsContent(uiComponents)
+	-- Auto Farm Tab
+	local autoFarmTab = Instance.new("Frame")
+	autoFarmTab.Name = "AutoFarmTab"
+	autoFarmTab.Size = UDim2.new(1, 0, 1, 0)
+	autoFarmTab.BackgroundTransparency = 1
+	autoFarmTab.Visible = true
+	
+	-- Title
+	local title = Instance.new("TextLabel")
+	title.Name = "Title"
+	title.Size = UDim2.new(1, 0, 0, 60)
+	title.BackgroundTransparency = 1
+	title.Text = "🤖 AUTO FARM SYSTEM"
+	title.TextColor3 = BEEZ_HUB_COLORS.light
+	title.TextSize = 24
+	title.Font = Enum.Font.GothamBold
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Position = UDim2.new(0, 30, 0, 20)
+	title.Parent = autoFarmTab
+	
+	-- Mode Selection Grid
+	local modeGrid = Instance.new("Frame")
+	modeGrid.Name = "ModeGrid"
+	modeGrid.Size = UDim2.new(1, -60, 0, 250)
+	modeGrid.Position = UDim2.new(0, 30, 0, 100)
+	modeGrid.BackgroundTransparency = 1
+	modeGrid.Parent = autoFarmTab
+	
+	-- Tạo mode cards
+	local modeCards = {}
+	local cardX = 0
+	for modeName, config in pairs(FARM_MODES) do
+		local card = createModeCard(
+			modeName,
+			config.icon,
+			config.color,
+			modeName == currentFarmMode
+		)
+		card.Position = UDim2.new(0, cardX, 0, 0)
+		card.Parent = modeGrid
+		
+		card.MouseButton1Click:Connect(function()
+			if autoFarmEnabled then
+				changeFarmMode(modeName)
+			else
+				toggleAutoFarm(modeName)
+			end
+		end)
+		
+		modeCards[modeName] = card
+		cardX = cardX + 150
+	end
+	
+	-- Control Buttons
+	local controlGrid = Instance.new("Frame")
+	controlGrid.Name = "ControlGrid"
+	controlGrid.Size = UDim2.new(1, -60, 0, 60)
+	controlGrid.Position = UDim2.new(0, 30, 0, 370)
+	controlGrid.BackgroundTransparency = 1
+	controlGrid.Parent = autoFarmTab
+	
+	-- Start Button
+	local startButton = createBeeButton(
+		"Start",
+		"▶️ START FARMING",
+		"▶️",
+		BEEZ_HUB_COLORS.success,
+		function()
+			toggleAutoFarm(currentFarmMode)
+		end
+	)
+	startButton.Size = UDim2.new(0.48, 0, 1, 0)
+	startButton.Position = UDim2.new(0, 0, 0, 0)
+	startButton.Parent = controlGrid
+	
+	-- Stop Button
+	local stopButton = createBeeButton(
+		"Stop",
+		"⏹️ STOP FARMING",
+		"⏹️",
+		BEEZ_HUB_COLORS.danger,
+		function()
+			toggleAutoFarm(currentFarmMode)
+		end
+	)
+	stopButton.Size = UDim2.new(0.48, 0, 1, 0)
+	stopButton.Position = UDim2.new(0.52, 0, 0, 0)
+	stopButton.Parent = controlGrid
+	
+	-- Stats Preview
+	local statsPreview = Instance.new("Frame")
+	statsPreview.Name = "StatsPreview"
+	statsPreview.Size = UDim2.new(1, -60, 0, 80)
+	statsPreview.Position = UDim2.new(0, 30, 0, 450)
+	statsPreview.BackgroundColor3 = BEEZ_HUB_COLORS.darker
+	statsPreview.BackgroundTransparency = 0.7
+	
+	local statsCorner = Instance.new("UICorner")
+	statsCorner.CornerRadius = UDim.new(0, 12)
+	statsCorner.Parent = statsPreview
+	
+	local statsTitle = Instance.new("TextLabel")
+	statsTitle.Name = "StatsTitle"
+	statsTitle.Size = UDim2.new(1, 0, 0, 30)
+	statsTitle.Position = UDim2.new(0, 20, 0, 10)
+	statsTitle.BackgroundTransparency = 1
+	statsTitle.Text = "LIVE STATS"
+	statsTitle.TextColor3 = Color3.fromRGB(150, 150, 150)
+	statsTitle.TextSize = 12
+	statsTitle.Font = Enum.Font.GothamBold
+	statsTitle.TextXAlignment = Enum.TextXAlignment.Left
+	statsTitle.Parent = statsPreview
+	
+	local killsLabel = Instance.new("TextLabel")
+	killsLabel.Name = "Kills"
+	killsLabel.Size = UDim2.new(0.5, -10, 0, 30)
+	killsLabel.Position = UDim2.new(0, 20, 0, 40)
+	killsLabel.BackgroundTransparency = 1
+	killsLabel.Text = "Kills: 0"
+	killsLabel.TextColor3 = BEEZ_HUB_COLORS.light
+	killsLabel.TextSize = 14
+	killsLabel.Font = Enum.Font.GothamSemibold
+	killsLabel.TextXAlignment = Enum.TextXAlignment.Left
+	killsLabel.Parent = statsPreview
+	
+	local timeLabel = Instance.new("TextLabel")
+	timeLabel.Name = "Time"
+	timeLabel.Size = UDim2.new(0.5, -10, 0, 30)
+	timeLabel.Position = UDim2.new(0.5, 10, 0, 40)
+	timeLabel.BackgroundTransparency = 1
+	timeLabel.Text = "Time: 00:00"
+	timeLabel.TextColor3 = BEEZ_HUB_COLORS.light
+	timeLabel.TextSize = 14
+	timeLabel.Font = Enum.Font.GothamSemibold
+	timeLabel.TextXAlignment = Enum.TextXAlignment.Left
+	timeLabel.Parent = statsPreview
+	
+	statsPreview.Parent = autoFarmTab
+	
+	-- Thêm tab vào content frame
+	autoFarmTab.Parent = uiComponents.contentFrame
+	
+	-- Trả về các component để cập nhật
+	return {
+		modeCards = modeCards,
+		startButton = startButton,
+		stopButton = stopButton,
+		killsLabel = killsLabel,
+		timeLabel = timeLabel,
+		autoFarmTab = autoFarmTab
+	}
+end
+
+-- Chuyển tab
+local function switchTab(tabName)
+	local contentFrame = BeeZHubUI.MainWindow.ContentFrame
+	for _, child in ipairs(contentFrame:GetChildren()) do
+		child.Visible = false
+	end
+	
+	local tab = contentFrame:FindFirstChild(tabName .. "Tab")
+	if tab then
+		tab.Visible = true
+	end
+end
+
+-- Cập nhật UI status
+local function updateUIStatus(uiComponents, farmComponents)
+	if not uiComponents or not farmComponents then return end
+	
+	local statusText = autoFarmEnabled and "🟢 FARMING: " .. currentFarmMode or "🟡 READY"
+	local statusColor = autoFarmEnabled and BEEZ_HUB_COLORS.success or BEEZ_HUB_COLORS.warning
+	
+	uiComponents.statusText.Text = statusText
+	uiComponents.statusText.TextColor3 = statusColor
+	
+	-- Cập nhật mode cards
+	if farmComponents.modeCards then
+		for modeName, card in pairs(farmComponents.modeCards) do
+			local stroke = card:FindFirstChild("UIStroke")
+			if stroke then
+				if modeName == currentFarmMode then
+					stroke.Color = FARM_MODES[modeName].color
+					stroke.Transparency = 0.3
+					
+					-- Thêm glow nếu chưa có
+					if not card:FindFirstChild("Glow") then
+						local glow = Instance.new("ImageLabel")
+						glow.Name = "Glow"
+						glow.Size = UDim2.new(1, 20, 1, 20)
+						glow.Position = UDim2.new(0, -10, 0, -10)
+						glow.BackgroundTransparency = 1
+						glow.Image = "rbxassetid://5554236805"
+						glow.ImageColor3 = FARM_MODES[modeName].color
+						glow.ImageTransparency = 0.6
+						glow.ScaleType = Enum.ScaleType.Slice
+						glow.SliceCenter = Rect.new(23, 23, 277, 277)
+						glow.ZIndex = -1
+						glow.Parent = card
+					end
+				else
+					stroke.Color = Color3.fromRGB(100, 100, 100)
+					stroke.Transparency = 0.7
+					
+					-- Xóa glow
+					local glow = card:FindFirstChild("Glow")
+					if glow then
+						glow:Destroy()
+					end
+				end
+			end
+		end
+	end
+	
+	-- Cập nhật stats
+	if farmComponents.killsLabel then
+		farmComponents.killsLabel.Text = "Kills: " .. farmStats.kills
+		
+		if farmStats.startTime > 0 then
+			local elapsed = tick() - farmStats.startTime
+			local minutes = math.floor(elapsed / 60)
+			local seconds = math.floor(elapsed % 60)
+			farmComponents.timeLabel.Text = string.format("Time: %02d:%02d", minutes, seconds)
+		end
+	end
+end
+
+-- Auto farm logic
+local function startAutoFarm()
+	if autoFarmEnabled then return end
+	
+	autoFarmEnabled = true
+	farmStats.startTime = tick()
+	
+	showNotification(
+		"BeeZ Farm 🐝",
+		"Bắt đầu farm: " .. currentFarmMode,
+		FARM_MODES[currentFarmMode].color,
+		3
+	)
+	
+	-- Main farm loop
+	autoFarmConnection = RunService.Heartbeat:Connect(function(deltaTime)
+		farmStats.sessionTime = farmStats.sessionTime + deltaTime
+		
+		-- Giả lập farm logic
+		if farmStats.sessionTime % 2 < deltaTime then
+			farmStats.kills = farmStats.kills + 1
+			farmStats.experience = farmStats.experience + 100
+			
+			-- Random drops
+			if math.random(1, 10) == 1 then
+				farmStats.materials = farmStats.materials + 1
+			end
+			
+			if math.random(1, 5) == 1 then
+				farmStats.berries = farmStats.berries + math.random(100, 1000)
+			end
+		end
+	end)
+end
+
+-- Dừng auto farm
+local function stopAutoFarm()
+	if not autoFarmEnabled then return end
+	
+	autoFarmEnabled = false
+	
+	if autoFarmConnection then
+		autoFarmConnection:Disconnect()
+		autoFarmConnection = nil
+	end
+	
+	showNotification(
+		"BeeZ Farm 🐝",
+		"Đã dừng farm",
+		BEEZ_HUB_COLORS.danger,
+		3
+	)
+end
+
+-- Bật/Tắt farm
+local function toggleAutoFarm(mode)
+	if mode then
+		currentFarmMode = mode
+	end
+	
+	if autoFarmEnabled then
+		stopAutoFarm()
+	else
+		startAutoFarm()
+	end
+	
+	return autoFarmEnabled
+end
+
+-- Đổi chế độ farm
+local function changeFarmMode(mode)
+	if not FARM_MODES[mode] then return false end
+	
+	local wasEnabled = autoFarmEnabled
+	
+	if wasEnabled then
+		stopAutoFarm()
+	end
+	
+	currentFarmMode = mode
+	
+	if wasEnabled then
+		startAutoFarm()
+	end
+	
+	showNotification(
+		"BeeZ Farm 🐝",
+		"Đã chuyển sang: " .. mode,
+		FARM_MODES[mode].color,
+		3
+	)
+	
+	return true
+end
+
+-- Khởi tạo BeeZ Hub
+local function initializeBeeZHub()
+	-- Tạo UI
+	local uiComponents = createBeeZHubUI()
+	local farmComponents = createTabsContent(uiComponents)
+	
+	-- Hiển thị welcome notification
+	showNotification(
+		"BeeZ Hub 🐝",
+		"Chào mừng đến với BeeZ Hub v2.0!",
+		BEEZ_HUB_COLORS.primary,
+		5
+	)
+	
+	-- Cập nhật UI liên tục
+	spawn(function()
+		while true do
+			wait(0.5)
+			updateUIStatus(uiComponents, farmComponents)
+		end
+	end)
+	
+	-- Chat command để mở UI
+	player.Chatted:Connect(function(message)
+		if message:lower() == "/beez" then
+			mainWindow.Visible = not mainWindow.Visible
+			if mainWindow.Visible then
+				showNotification(
+					"BeeZ Hub 🐝",
+					"UI đã được mở!",
+					BEEZ_HUB_COLORS.primary,
+					3
+				)
+			end
+		end
+	end)
+	
+	print("════════════════════════════════════")
+	print("🐝 BeeZ Hub " .. BEEZ_HUB_VERSION .. " - Wind UI")
+	print("📁 Loaded successfully!")
+	print("💬 Type /beez in chat to toggle UI")
+	print("════════════════════════════════════")
+	
+	return {
+		ToggleFarm = toggleAutoFarm,
+		ChangeMode = changeFarmMode,
+		ShowNotification = showNotification,
+		GetStats = function() return farmStats end
+	}
+end
+
+-- Chạy khởi tạo
+local BeeZHubAPI = initializeBeeZHub()
+
+-- Xuất API
+return BeeZHubAPI
